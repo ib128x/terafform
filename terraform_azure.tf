@@ -299,7 +299,6 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  }
 
 
-
  storage_profile_data_disk {
    lun          = 0
    caching        = "ReadWrite"
