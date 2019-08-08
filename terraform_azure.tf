@@ -136,7 +136,7 @@ resource "azurerm_virtual_machine" "terraformvm1" {
     location              = "centralus"
     resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
     network_interface_ids = ["${azurerm_network_interface.terraformnicPub.id}"]
-	vm_size               = "Standard_DS1_v2"
+	vm_size               = "Standard_DS4_v2"
 
     storage_os_disk {
         name              = "OsDiskJump"
@@ -148,7 +148,7 @@ resource "azurerm_virtual_machine" "terraformvm1" {
     storage_image_reference {
         publisher = "Canonical"
         offer     = "UbuntuServer"
-        sku       = "16.04.0-LTS"
+        sku       = "18.04-LTS"
         version   = "latest"
     }
 
@@ -174,11 +174,11 @@ resource "azurerm_virtual_machine" "terraformvm1" {
 
 # Create virtual machine
 resource "azurerm_virtual_machine" "terraformvm" {
-    name                  = "ngeagNode1"
+    name                  = "ngeagMaster1"
     location              = "centralus"
     resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
     network_interface_ids = ["${azurerm_network_interface.terraformnic.id}"]
-    vm_size               = "Standard_DS1_v2"
+    vm_size               = "Standard_DS4_v2"
 
     storage_os_disk {
         name              = "OsDisk"
@@ -191,7 +191,7 @@ resource "azurerm_virtual_machine" "terraformvm" {
     storage_image_reference {
         publisher = "Canonical"
         offer     = "UbuntuServer"
-        sku       = "16.04.0-LTS"
+        sku       = "18.04-LTS"
         version   = "latest"
     }
 
@@ -279,7 +279,7 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  upgrade_policy_mode = "Manual"
 
  sku {
-   name     = "Standard_DS1_v2"
+   name     = "Standard_DS4_v2"
    tier     = "Standard"
    capacity = 4
  }
@@ -287,7 +287,7 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  storage_profile_image_reference {
    publisher = "Canonical"
    offer     = "UbuntuServer"
-   sku       = "16.04-LTS"
+   sku       = "18.04-LTS"
    version   = "latest"
  }
 
