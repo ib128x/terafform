@@ -196,7 +196,7 @@ resource "azurerm_virtual_machine" "terraformvm" {
     }
 
     os_profile {
-        computer_name  = "vm"
+        computer_name  = "master1"
         admin_username = "ngeag"
 		admin_password = "ngeagAa1234%^!"
     }
@@ -217,7 +217,6 @@ resource "azurerm_virtual_machine" "terraformvm" {
 
 ## scaleset ##
 ##############
-
 
 # Create public IPs
 resource "azurerm_public_ip" "vmssterraformpublicip" {
