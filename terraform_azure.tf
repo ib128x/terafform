@@ -5,50 +5,31 @@ provider "azurerm" {
 
 # Create a resource group if it doesn’t exist
 resource "azurerm_resource_group" "terraformgroup" {
-    name     = "RG-NGEAG-CentralUS"
-    location = "centralus"
+    name     = "132c44-network-eastus2"
+    location = "eastus2"
 
     tags = {
         environment = "ngeag"
     }
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "terraformnetwork" {
-    name                = "NGEAG-VN-CentralUS"
-    address_space       = ["10.0.0.0/16"]
-    location            = "centralus"
-    resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
+## Create virtual network
+#resource "azurerm_virtual_network" "terraformnetwork" {
+#    name                = "132c44-vnet-eastus2"
+#    address_space       = ["10.253.12.0/22"]
+#    location            = "eastus2"
+#    resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
+#
+#    tags = {
+#        environment = "ngeag"
+#    }
+#}
 
-    tags = {
-        environment = "ngeag"
-    }
-}
-
-# Create subnet
-resource "azurerm_subnet" "terraformsubnet" {
-    name                 = "NGEAG-Subnet"
-    resource_group_name  = "${azurerm_resource_group.terraformgroup.name}"
-    virtual_network_name = "${azurerm_virtual_network.terraformnetwork.name}"
-    address_prefix       = "10.0.1.0/24"
-}
-
-# Create public IPs
-resource "azurerm_public_ip" "myterraformpublicip" {
-    name                         = "PublicIP"
-    location                     = "centralus"
-    resource_group_name          = "${azurerm_resource_group.terraformgroup.name}"
-    allocation_method            = "Dynamic"
-
-    tags = {
-        environment = "ngeag"
-    }
-}
 
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "terraformnsg" {
-    name                = "NGEAG-NetworkSecurityGroup"
-    location            = "centralus"
+    name                = "132c44-NSG"
+    location            = "eastus2"
     resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
     
     security_rule {
@@ -63,24 +44,71 @@ resource "azurerm_network_security_group" "terraformnsg" {
         destination_address_prefix = "*"
     }
 
+	    security_rule {
+        name                       = "dashboard"
+        priority                   = 2001
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "8000"
+        source_address_prefix      = "144.160.0.0/16"
+        destination_address_prefix = "*"
+    }
+	
+	    security_rule {
+        name                       = "http"
+        priority                   = 3001
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "80"
+        source_address_prefix      = "144.160.0.0/16"
+        destination_address_prefix = "*"
+    }
+	
+	    security_rule {
+        name                       = "https"
+        priority                   = 4001
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "443"
+        source_address_prefix      = "144.160.0.0/16"
+        destination_address_prefix = "*"
+    }
+	
+
     tags = {
         environment = "ngeag"
     }
+}
+
+# Retrieving the subnet_id from Azure
+data "azurerm_subnet" "subid" {
+  name                 = "internal-eastus2"
+  virtual_network_name = "132c44-vnet-eastus2"
+  resource_group_name  = "${azurerm_resource_group.terraformgroup.name}"
+}
+
+output "subnet_id" {
+  value = "${data.azurerm_subnet.subid.id}"
 }
 
 
 # Create network interface
-resource "azurerm_network_interface" "terraformnic" {
-    name                      = "NGEAG-NIC"
-    location                  = "centralus"
+resource "azurerm_network_interface" "terraformnicm1" {
+    name                      = "NGEAG-NIC-MASTER1"
+    location                  = "eastus2"
     resource_group_name       = "${azurerm_resource_group.terraformgroup.name}"
     network_security_group_id = "${azurerm_network_security_group.terraformnsg.id}"
 
     ip_configuration {
         name                          = "NGEAG-NicConfiguration"
-        subnet_id                     = "${azurerm_subnet.terraformsubnet.id}"
-        private_ip_address_allocation = "Dynamic"
-        # public_ip_address_id          = "${azurerm_public_ip.myterraformpublicip.id}"
+        subnet_id                     = "${data.azurerm_subnet.subid.id}"
+        private_ip_address_allocation = "Dynamic"        
     }
 
     tags = {
@@ -88,17 +116,17 @@ resource "azurerm_network_interface" "terraformnic" {
     }
 }
 
-resource "azurerm_network_interface" "terraformnicPub" {
-    name                      = "NGEAG-NIC-PUB"
-    location                  = "centralus"
+# Create network interface
+resource "azurerm_network_interface" "terraformnicm2" {
+    name                      = "NGEAG-NIC-MASTER2"
+    location                  = "eastus2"
     resource_group_name       = "${azurerm_resource_group.terraformgroup.name}"
     network_security_group_id = "${azurerm_network_security_group.terraformnsg.id}"
 
     ip_configuration {
         name                          = "NGEAG-NicConfiguration"
-        subnet_id                     = "${azurerm_subnet.terraformsubnet.id}"
-        private_ip_address_allocation = "Dynamic"
-        public_ip_address_id          = "${azurerm_public_ip.myterraformpublicip.id}"
+        subnet_id                     = "${data.azurerm_subnet.subid.id}"
+        private_ip_address_allocation = "Dynamic"        
     }
 
     tags = {
@@ -106,6 +134,23 @@ resource "azurerm_network_interface" "terraformnicPub" {
     }
 }
 
+# Create network interface
+resource "azurerm_network_interface" "terraformnicm3" {
+    name                      = "NGEAG-NIC-MASTER3"
+    location                  = "eastus2"
+    resource_group_name       = "${azurerm_resource_group.terraformgroup.name}"
+    network_security_group_id = "${azurerm_network_security_group.terraformnsg.id}"
+
+    ip_configuration {
+        name                          = "NGEAG-NicConfiguration"
+        subnet_id                     = "${data.azurerm_subnet.subid.id}"
+        private_ip_address_allocation = "Dynamic"        
+    }
+
+    tags = {
+        environment = "ngeag"
+    }
+}
 
 # Generate random text for a unique storage account name
 resource "random_id" "randomId" {
@@ -121,7 +166,7 @@ resource "random_id" "randomId" {
 resource "azurerm_storage_account" "storageaccount" {
     name                        = "diag${random_id.randomId.hex}"
     resource_group_name         = "${azurerm_resource_group.terraformgroup.name}"
-    location                    = "centralus"
+    location                    = "eastus2"
     account_tier                = "Standard"
     account_replication_type    = "LRS"
 
@@ -130,58 +175,16 @@ resource "azurerm_storage_account" "storageaccount" {
     }
 }
 
-# Create Jump-Server VM
+# Create virtual machine - master1
 resource "azurerm_virtual_machine" "terraformvm1" {
-    name                  = "ngeagJumpServer1"
-    location              = "centralus"
-    resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
-    network_interface_ids = ["${azurerm_network_interface.terraformnicPub.id}"]
-	vm_size               = "Standard_DS4_v2"
-
-    storage_os_disk {
-        name              = "OsDiskJump"
-        caching           = "ReadWrite"
-        create_option     = "FromImage"
-        managed_disk_type = "Premium_LRS"
-    }
-
-    storage_image_reference {
-        publisher = "Canonical"
-        offer     = "UbuntuServer"
-        sku       = "18.04-LTS"
-        version   = "latest"
-    }
-
-    os_profile {
-        computer_name  = "ngeagJumpServer"
-        admin_username = "ngeag"
-		admin_password = "ngeagAa1234%^!"
-    }
-
-    os_profile_linux_config {
-        disable_password_authentication = false
-    }
-
-    boot_diagnostics {
-        enabled = "true"
-        storage_uri = "${azurerm_storage_account.storageaccount.primary_blob_endpoint}"
-    }
-
-    tags = {
-        environment = "centralus"
-    }
-}
-
-# Create virtual machine
-resource "azurerm_virtual_machine" "terraformvm" {
     name                  = "ngeagMaster1"
-    location              = "centralus"
+    location              = "eastus2"
     resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
-    network_interface_ids = ["${azurerm_network_interface.terraformnic.id}"]
+    network_interface_ids = ["${azurerm_network_interface.terraformnicm1.id}"]
     vm_size               = "Standard_DS4_v2"
 
     storage_os_disk {
-        name              = "OsDisk"
+        name              = "OsDiskM1"
         caching           = "ReadWrite"
         create_option     = "FromImage"
         managed_disk_type = "Premium_LRS"
@@ -189,10 +192,7 @@ resource "azurerm_virtual_machine" "terraformvm" {
     }
 
     storage_image_reference {
-        publisher = "Canonical"
-        offer     = "UbuntuServer"
-        sku       = "18.04-LTS"
-        version   = "latest"
+	    id = "/subscriptions/b1af8825-0fde-44a1-9ebf-63d5bd0410e4/resourceGroups/att-golden-images/providers/Microsoft.Compute/galleries/ATT_Shared_Images/images/RHEL-7"
     }
 
     os_profile {
@@ -211,17 +211,98 @@ resource "azurerm_virtual_machine" "terraformvm" {
     }
 
     tags = {
-        environment = "centralus"
+        environment = "ngeag"
     }
 }
 
+# Create virtual machine - master2
+resource "azurerm_virtual_machine" "terraformvm2" {
+    name                  = "ngeagMaster2"
+    location              = "eastus2"
+    resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
+    network_interface_ids = ["${azurerm_network_interface.terraformnicm2.id}"]
+    vm_size               = "Standard_DS4_v2"
+
+    storage_os_disk {
+        name              = "OsDiskM2"
+        caching           = "ReadWrite"
+        create_option     = "FromImage"
+        managed_disk_type = "Premium_LRS"
+		disk_size_gb	  = "512"
+    }
+
+    storage_image_reference {
+	    id = "/subscriptions/b1af8825-0fde-44a1-9ebf-63d5bd0410e4/resourceGroups/att-golden-images/providers/Microsoft.Compute/galleries/ATT_Shared_Images/images/RHEL-7"
+    }
+
+    os_profile {
+        computer_name  = "master2"
+        admin_username = "ngeag"
+		admin_password = "ngeagAa1234%^!"
+    }
+
+    os_profile_linux_config {
+        disable_password_authentication = false
+    }
+
+    boot_diagnostics {
+        enabled = "true"
+        storage_uri = "${azurerm_storage_account.storageaccount.primary_blob_endpoint}"
+    }
+
+    tags = {
+        environment = "ngeag"
+    }
+}
+
+# Create virtual machine - master3
+resource "azurerm_virtual_machine" "terraformvm3" {
+    name                  = "ngeagMaster3"
+    location              = "eastus2"
+    resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
+    network_interface_ids = ["${azurerm_network_interface.terraformnicm3.id}"]
+    vm_size               = "Standard_DS4_v2"
+
+    storage_os_disk {
+        name              = "OsDiskM3"
+        caching           = "ReadWrite"
+        create_option     = "FromImage"
+        managed_disk_type = "Premium_LRS"
+		disk_size_gb	  = "512"
+    }
+
+    storage_image_reference {
+	    id = "/subscriptions/b1af8825-0fde-44a1-9ebf-63d5bd0410e4/resourceGroups/att-golden-images/providers/Microsoft.Compute/galleries/ATT_Shared_Images/images/RHEL-7"
+    }
+
+    os_profile {
+        computer_name  = "master3"
+        admin_username = "ngeag"
+		admin_password = "ngeagAa1234%^!"
+    }
+
+    os_profile_linux_config {
+        disable_password_authentication = false
+    }
+
+    boot_diagnostics {
+        enabled = "true"
+        storage_uri = "${azurerm_storage_account.storageaccount.primary_blob_endpoint}"
+    }
+
+    tags = {
+        environment = "ngeag"
+    }
+}
+
+
 ## scaleset ##
-##############
+
 
 # Create public IPs
 resource "azurerm_public_ip" "vmssterraformpublicip" {
     name                         = "PublicIPVMSS"
-    location                     = "centralus"
+    location                     = "eastus2"
     resource_group_name          = "${azurerm_resource_group.terraformgroup.name}"
     allocation_method            = "Dynamic"
 
@@ -230,10 +311,9 @@ resource "azurerm_public_ip" "vmssterraformpublicip" {
     }
 }
 
-
 resource "azurerm_lb" "vmss" {
- name                = "vmss-lb"
- location            = "centralus"
+ name                = "132c44-vmss-lb"
+ location            = "eastus2"
  resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
 
  frontend_ip_configuration {
@@ -242,7 +322,7 @@ resource "azurerm_lb" "vmss" {
  }
 
  tags = {
-     environment = "centralus"
+     environment = "ngeag"
  }
 }
 
@@ -273,21 +353,18 @@ resource "azurerm_lb_rule" "lbnatrule" {
 
 resource "azurerm_virtual_machine_scale_set" "vmss" {
  name                = "vmscaleset"
- location            = "centralus"
+ location            = "eastus2"
  resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
  upgrade_policy_mode = "Manual"
 
  sku {
    name     = "Standard_DS4_v2"
    tier     = "Standard"
-   capacity = 4
+   capacity = 6
  }
-
- storage_profile_image_reference {
-   publisher = "Canonical"
-   offer     = "UbuntuServer"
-   sku       = "18.04-LTS"
-   version   = "latest"
+ 
+  storage_profile_image_reference {
+      id = "/subscriptions/b1af8825-0fde-44a1-9ebf-63d5bd0410e4/resourceGroups/att-golden-images/providers/Microsoft.Compute/galleries/ATT_Shared_Images/images/RHEL-7"
  }
 
  storage_profile_os_disk {
@@ -309,7 +386,6 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
    computer_name_prefix = "vmlab"
    admin_username       = "ngeag"
    admin_password       = "ngeagAa1234%^!"
-#   custom_data          = "${file("web.conf")}"
  }
 
  os_profile_linux_config {
@@ -322,14 +398,19 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
 
    ip_configuration {
      name                                   = "IPConfiguration"
-     subnet_id                              = "${azurerm_subnet.terraformsubnet.id}"
+     subnet_id                              = "${data.azurerm_subnet.subid.id}"
      load_balancer_backend_address_pool_ids = ["${azurerm_lb_backend_address_pool.bpepool.id}"]
      primary = true
    }
  }
 
  tags = {
-     environment = "centralus"
+     environment = "ngeag"
  }
 }
+
+
+
+
+
 
