@@ -25,19 +25,37 @@ resource "azurerm_resource_group" "terraformgroup" {
     tags = {
         environment = "generic"
     }
+}
 
-## wait 30s after RG were created
-#	provisioner "local-exec" {
-#	  command = "sleep 30"
-#	}
+# Create virtual network
+resource "azurerm_virtual_network" "terraformnetwork" {
+    name                = "${var.resource_group}-VN"
+    address_space       = [var.virtual_network]
+    location            = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
+		
+}
+
+# Create subnet 
+resource "azurerm_subnet" "terraformsubnet" {
+    name                 = "${var.resource_group}-Subnet"
+    resource_group_name  = "${azurerm_resource_group.terraformgroup.name}"
+    virtual_network_name = "${var.resource_group}-VN"
+    address_prefix       = "${var.subnet}"
+}
+
+resource "azurerm_private_dns_zone" "test" {
+    name                = "${var.resource_group}-svc.local"
+    resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
+	# zone_type           = "Public"
 }
 
 
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "terraformnsg" {
     name                = "${var.resource_group}-NSG"
-    location            = var.location
-    resource_group_name = var.resource_group
+    location            = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
     
     security_rule {
         name                       = "SSH"
@@ -104,27 +122,11 @@ resource "azurerm_network_security_group" "terraformnsg" {
     }
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "terraformnetwork" {
-    name                = "${var.resource_group}-VN"
-    address_space       = [var.virtual_network]
-    location            = var.location
-    resource_group_name = var.resource_group
-}
-
-# Create subnet
-resource "azurerm_subnet" "terraformsubnet" {
-    name                 = "${var.resource_group}-Subnet"
-    resource_group_name  = var.resource_group
-    virtual_network_name = "${var.resource_group}-VN"
-    address_prefix       = "${var.subnet}"
-}
-
 # Create public IPs
 resource "azurerm_public_ip" "myterraformpublicip" {
     name                         = "PublicIP"
-    location                     = var.location
-    resource_group_name          = var.resource_group
+    location                     = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name          = "${azurerm_resource_group.terraformgroup.name}"
     allocation_method            = "Dynamic"
 
     tags = {
@@ -135,8 +137,8 @@ resource "azurerm_public_ip" "myterraformpublicip" {
 
 resource "azurerm_network_interface" "terraformnicPub" {
     name                      = "${var.resource_group}-PUBIP"
-    location                  = var.location
-    resource_group_name       = var.resource_group
+    location                  = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name       = "${azurerm_resource_group.terraformgroup.name}"
     network_security_group_id = "${azurerm_network_security_group.terraformnsg.id}"
 
     ip_configuration {
@@ -155,7 +157,7 @@ resource "azurerm_network_interface" "terraformnicPub" {
 resource "random_id" "randomId" {
     keepers = {
         # Generate a new ID only when a new resource group is defined
-        resource_group = var.resource_group
+        resource_group = "${azurerm_resource_group.terraformgroup.name}"
     }
     
     byte_length = 8
@@ -164,8 +166,8 @@ resource "random_id" "randomId" {
 # Create storage account for boot diagnostics
 resource "azurerm_storage_account" "storageaccount" {
     name                        = "diag${random_id.randomId.hex}"
-    resource_group_name         = var.resource_group
-    location                    = var.location
+    resource_group_name         = "${azurerm_resource_group.terraformgroup.name}"
+    location                    = "${azurerm_resource_group.terraformgroup.location}"
     account_tier                = "Standard"
     account_replication_type    = "LRS"
 
@@ -177,8 +179,8 @@ resource "azurerm_storage_account" "storageaccount" {
 # Create Jump-Server VM
 resource "azurerm_virtual_machine" "terraforJumpSrv" {
     name                  = "${var.resource_group}-JumpSrv"
-    location              = var.location
-    resource_group_name   = var.resource_group
+    location              = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
     network_interface_ids = ["${azurerm_network_interface.terraformnicPub.id}"]
 	vm_size               = "Standard_DS4_v2"
 
@@ -223,8 +225,8 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 resource "azurerm_network_interface" "terraformnicmater" {
     count                     = "${var.masters_count}"
     name                      = "NIC-${count.index+1}"
-    location                  = var.location
-    resource_group_name       = var.resource_group
+    location                  = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name       = "${azurerm_resource_group.terraformgroup.name}"
     network_security_group_id = "${azurerm_network_security_group.terraformnsg.id}"
 
     ip_configuration {
@@ -242,8 +244,8 @@ resource "azurerm_network_interface" "terraformnicmater" {
 resource "azurerm_virtual_machine" "terraformvm" {
   count                 = "${var.masters_count}"
   name                  = "master-${count.index+1}"
-  location              = var.location
-  resource_group_name   = var.resource_group
+  location              = "${azurerm_resource_group.terraformgroup.location}"
+  resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
   #network_interface_ids = ["${element(azurerm_network_interface.terraformnicmater.*.id, count.index+1)}"]
   network_interface_ids = ["${element(concat(azurerm_network_interface.terraformnicmater.*.id, list("")), count.index)}"]  
 
@@ -260,7 +262,7 @@ resource "azurerm_virtual_machine" "terraformvm" {
 
   storage_image_reference {
     # need to copy worker image to the require location if not eastus2 #
-	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image"
+	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/vm-image-generic"
   }
 
   # delete the OS disk automatically when deleting the VM
@@ -285,8 +287,8 @@ resource "azurerm_virtual_machine" "terraformvm" {
 
 resource "azurerm_virtual_machine_scale_set" "vmss" {
  name                = "vm-scaleset-${var.resource_group}"
- location            = var.location
- resource_group_name = var.resource_group
+ location            = "${azurerm_resource_group.terraformgroup.location}"
+ resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
  upgrade_policy_mode = "Manual"
 
  sku {
@@ -297,7 +299,7 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  
  storage_profile_image_reference {
    #id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/132c44-network-eastus2/providers/Microsoft.Compute/images/ngeag-worker-image"
-   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/worker-image"
+   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/vm-image-generic"
  }
 
  storage_profile_os_disk {   
