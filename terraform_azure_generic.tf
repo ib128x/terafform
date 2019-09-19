@@ -40,16 +40,18 @@ resource "azurerm_virtual_network" "terraformnetwork" {
 resource "azurerm_subnet" "terraformsubnet" {
     name                 = "${var.resource_group}-Subnet"
     resource_group_name  = "${azurerm_resource_group.terraformgroup.name}"
-    virtual_network_name = "${var.resource_group}-VN"
+    #virtual_network_name = "${var.resource_group}-VN"
+	virtual_network_name = "${azurerm_virtual_network.terraformnetwork.name}"
     address_prefix       = "${var.subnet}"
 }
 
 resource "azurerm_private_dns_zone" "test" {
-    name                = "${var.resource_group}-svc.local"
+    name                = "svc.local"
     resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
-	# zone_type           = "Public"
+	provisioner "local-exec" {
+		command = "az network private-dns link vnet create -g ${azurerm_resource_group.terraformgroup.name} --zone-name svc.local --name k8s --virtual-network ${azurerm_virtual_network.terraformnetwork.name} -e true"
+		}
 }
-
 
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "terraformnsg" {
@@ -262,7 +264,9 @@ resource "azurerm_virtual_machine" "terraformvm" {
 
   storage_image_reference {
     # need to copy worker image to the require location if not eastus2 #
-	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/vm-image-generic"
+	#id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/Generic_Image"
+	#id = "/subscriptions/b1af8825-0fde-44a1-9ebf-63d5bd0410e4/resourceGroups/att-golden-images/providers/Microsoft.Compute/galleries/ATT_Shared_Images/images/RHEL-7"
+	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-19092019"
   }
 
   # delete the OS disk automatically when deleting the VM
@@ -298,8 +302,8 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  }
  
  storage_profile_image_reference {
-   #id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/132c44-network-eastus2/providers/Microsoft.Compute/images/ngeag-worker-image"
-   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/vm-image-generic"
+   #id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/Generic_Image"
+   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/worker-image"
  }
 
  storage_profile_os_disk {   
