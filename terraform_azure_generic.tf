@@ -357,7 +357,7 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 		"sudo cp /snap/bin/nmap /bin",	
 		"cd jumpsrvscripts; /bin/sh masterdiscover.sh",
 		"/bin/sh /home/${var.admin_username}/jumpsrvscripts/k8s-installation.sh",
-		"cd jumpsrvscripts; /bin/sh k8s-installation.sh",		 
+		#"cd jumpsrvscripts; /bin/sh k8s-installation.sh",		 
        ]
     }	  	
 
