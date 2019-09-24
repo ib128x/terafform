@@ -8,6 +8,12 @@ variable admin_username {}
 variable admin_password {}
 variable masters_count {}
 variable scaleset_vm_count {}
+variable jump_server_fqdn {}
+variable subnet_4_script {}
+variable net_4_script {}
+
+
+# az network private-dns link vnet delete -g rg-generic --zone-name svc.local --name k8s -y
 
 ## should start with az login ##
 
@@ -52,6 +58,7 @@ resource "azurerm_private_dns_zone" "test" {
 		command = "az network private-dns link vnet create -g ${azurerm_resource_group.terraformgroup.name} --zone-name svc.local --name k8s --virtual-network ${azurerm_virtual_network.terraformnetwork.name} -e true"
 		}
 }
+
 
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "terraformnsg" {
@@ -130,6 +137,7 @@ resource "azurerm_public_ip" "myterraformpublicip" {
     location                     = "${azurerm_resource_group.terraformgroup.location}"
     resource_group_name          = "${azurerm_resource_group.terraformgroup.name}"
     allocation_method            = "Dynamic"
+	domain_name_label			 = "${var.jump_server_fqdn}"
 
     tags = {
         environment = "generic"
@@ -172,48 +180,6 @@ resource "azurerm_storage_account" "storageaccount" {
     location                    = "${azurerm_resource_group.terraformgroup.location}"
     account_tier                = "Standard"
     account_replication_type    = "LRS"
-
-    tags = {
-        environment = "generic"
-    }
-}
-
-# Create Jump-Server VM
-resource "azurerm_virtual_machine" "terraforJumpSrv" {
-    name                  = "${var.resource_group}-JumpSrv"
-    location              = "${azurerm_resource_group.terraformgroup.location}"
-    resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
-    network_interface_ids = ["${azurerm_network_interface.terraformnicPub.id}"]
-	vm_size               = "Standard_DS4_v2"
-
-    storage_os_disk {
-        name              = "${var.resource_group}-JumpSrv-OsDisk"
-        caching           = "ReadWrite"
-        create_option     = "FromImage"
-        managed_disk_type = "Premium_LRS"
-    }
-
-    storage_image_reference {
-        publisher = "Canonical"
-        offer     = "UbuntuServer"
-        sku       = "18.04-LTS"
-        version   = "latest"
-    }
-
-    os_profile {
-        computer_name  = "jumpsrv"
-        admin_username = "${var.admin_username}"
-		admin_password = "${var.admin_password}"
-    }
-
-    os_profile_linux_config {
-        disable_password_authentication = false
-    }
-
-    boot_diagnostics {
-        enabled = "true"
-        storage_uri = "${azurerm_storage_account.storageaccount.primary_blob_endpoint}"
-    }
 
     tags = {
         environment = "generic"
@@ -263,10 +229,8 @@ resource "azurerm_virtual_machine" "terraformvm" {
 
 
   storage_image_reference {
-    # need to copy worker image to the require location if not eastus2 #
-	#id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/Generic_Image"
-	#id = "/subscriptions/b1af8825-0fde-44a1-9ebf-63d5bd0410e4/resourceGroups/att-golden-images/providers/Microsoft.Compute/galleries/ATT_Shared_Images/images/RHEL-7"
-	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-19092019"
+	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-2"
+	#id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-1"
   }
 
   # delete the OS disk automatically when deleting the VM
@@ -302,8 +266,7 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  }
  
  storage_profile_image_reference {
-   #id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/Generic_Image"
-   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/worker-image"
+   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-2"
  }
 
  storage_profile_os_disk {   
@@ -349,13 +312,65 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
 }
 
 
+# Create Jump-Server VM
+resource "azurerm_virtual_machine" "terraforJumpSrv" {
+    name                  = "${var.resource_group}-JumpSrv"
+    location              = "${azurerm_resource_group.terraformgroup.location}"
+    resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
+    network_interface_ids = ["${azurerm_network_interface.terraformnicPub.id}"]
+	vm_size               = "Standard_DS4_v2"
+
+    storage_os_disk {
+        name              = "${var.resource_group}-JumpSrv-OsDisk"
+        caching           = "ReadWrite"
+        create_option     = "FromImage"
+        managed_disk_type = "Premium_LRS"
+    }
 
 
+	storage_image_reference {
+		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-3"
+	}
 
+    os_profile {
+        computer_name  = "jumpsrv"
+        admin_username = "${var.admin_username}"
+		admin_password = "${var.admin_password}"
+    }
 
+    os_profile_linux_config {
+        disable_password_authentication = false
+    }
 
+    boot_diagnostics {
+        enabled = "true"
+        storage_uri = "${azurerm_storage_account.storageaccount.primary_blob_endpoint}"
+    }
 
+	provisioner "remote-exec" {
+	  inline = [
+        "sed -i 's/INSTUSER/${var.admin_username}/g' jumpsrvscripts/k8s-installation.sh",
+        "sed -i 's/INSTPASS/${var.admin_password}/g' jumpsrvscripts/k8s-installation.sh",
+		"sed -i 's/INSTSUB/${var.subnet_4_script}/g' jumpsrvscripts/masterdiscover.sh",
+		"sed -i 's/INSTNET/${var.net_4_script}/g' jumpsrvscripts/masterdiscover.sh",
+		"sleep 15",
+		"sudo cp /snap/bin/nmap /bin",	
+		"cd jumpsrvscripts; /bin/sh masterdiscover.sh",
+		"/bin/sh /home/${var.admin_username}/jumpsrvscripts/k8s-installation.sh",
+		"cd jumpsrvscripts; /bin/sh k8s-installation.sh",		 
+       ]
+    }	  	
 
+	connection {
+	  type     = "ssh"
+      user     = "${var.admin_username}"
+      password = "${var.admin_password}"
+	  host     =  "${azurerm_public_ip.myterraformpublicip.domain_name_label}.${azurerm_resource_group.terraformgroup.location}.cloudapp.azure.com"
+    }
 
+    tags = {
+        environment = "generic"
+    }
+}
 
 
