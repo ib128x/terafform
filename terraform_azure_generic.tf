@@ -329,7 +329,8 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 
 
 	storage_image_reference {
-		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-3"
+		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrvImage"
+		#id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-4"
 	}
 
     os_profile {
@@ -348,18 +349,35 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
     }
 
 	provisioner "remote-exec" {
-	  inline = [
-        "sed -i 's/INSTUSER/${var.admin_username}/g' jumpsrvscripts/k8s-installation.sh",
+		inline = [
+		# Masters and Workers installation
+		"sed -i 's/INSTUSER/${var.admin_username}/g' jumpsrvscripts/k8s-installation.sh",
         "sed -i 's/INSTPASS/${var.admin_password}/g' jumpsrvscripts/k8s-installation.sh",
+		"sed -i 's/INSTSUB/${var.subnet_4_script}/g' jumpsrvscripts/k8s-installation.sh",
+		"sed -i 's/INSTNET/${var.net_4_script}/g' jumpsrvscripts/k8s-installation.sh",
 		"sed -i 's/INSTSUB/${var.subnet_4_script}/g' jumpsrvscripts/masterdiscover.sh",
 		"sed -i 's/INSTNET/${var.net_4_script}/g' jumpsrvscripts/masterdiscover.sh",
-		"sleep 15",
 		"sudo cp /snap/bin/nmap /bin",	
 		"cd jumpsrvscripts; /bin/sh masterdiscover.sh",
-		"/bin/sh /home/${var.admin_username}/jumpsrvscripts/k8s-installation.sh",
-		#"cd jumpsrvscripts; /bin/sh k8s-installation.sh",		 
+		"cd /home/${var.admin_username}/jumpsrvscripts; /bin/sh k8s-installation.sh",
        ]
     }	  	
+
+#	provisioner "remote-exec" {
+#		inline = [
+#		# kubernetes dashboard installation
+#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/dashboard-admin-user.yaml",
+#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/clusterRoleBinding.yaml",
+#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/kubernetes-dashboard-beta2.3.yaml",
+#       ]
+#    }
+
+#	provisioner "remote-exec" {
+#		inline = [
+#		# kubernetes metrics-server installation
+#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/metrics-server/deploy/1.8+ .",
+#       ]
+#    }
 
 	connection {
 	  type     = "ssh"
