@@ -9,13 +9,9 @@ variable admin_password {}
 variable masters_count {}
 variable scaleset_vm_count {}
 variable jump_server_fqdn {}
-variable subnet_4_script {}
-variable net_4_script {}
 
-
-# az network private-dns link vnet delete -g rg-generic --zone-name svc.local --name k8s -y
-
-## should start with az login ##
+## should start with az login
+## before destroy need to run: az network private-dns link vnet delete -g rg-generic --zone-name svc.local --name k8s -y
 
 
 # Configure the Microsoft Azure Provider
@@ -187,8 +183,6 @@ resource "azurerm_storage_account" "storageaccount" {
 }
 
 
-## Create 3 k8s-masters
-
 # Create network interface
 resource "azurerm_network_interface" "terraformnicmater" {
     count                     = "${var.masters_count}"
@@ -214,7 +208,6 @@ resource "azurerm_virtual_machine" "terraformvm" {
   name                  = "master-${count.index+1}"
   location              = "${azurerm_resource_group.terraformgroup.location}"
   resource_group_name   = "${azurerm_resource_group.terraformgroup.name}"
-  #network_interface_ids = ["${element(azurerm_network_interface.terraformnicmater.*.id, count.index+1)}"]
   network_interface_ids = ["${element(concat(azurerm_network_interface.terraformnicmater.*.id, list("")), count.index)}"]  
 
   # 1 vCPU, 3.5 Gb of RAM
@@ -229,8 +222,7 @@ resource "azurerm_virtual_machine" "terraformvm" {
 
 
   storage_image_reference {
-	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-2"
-	#id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-1"
+	id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-oct"
   }
 
   # delete the OS disk automatically when deleting the VM
@@ -266,7 +258,8 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
  }
  
  storage_profile_image_reference {
-   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-2"
+   #id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-2"
+   id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/master-image-oct"
  }
 
  storage_profile_os_disk {   
@@ -301,8 +294,7 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
    ip_configuration {
      name                                   = "IPConfiguration"
      subnet_id                              = "${azurerm_subnet.terraformsubnet.id}"
-#     load_balancer_backend_address_pool_ids = ["${azurerm_lb_backend_address_pool.bpepool.id}"]
-     primary = true
+     primary 								= true
    }
  }
 
@@ -329,8 +321,7 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 
 
 	storage_image_reference {
-		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrvImage"
-		#id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-4"
+		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-oct"
 	}
 
     os_profile {
@@ -353,10 +344,8 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 		# Masters and Workers installation
 		"sed -i 's/INSTUSER/${var.admin_username}/g' jumpsrvscripts/k8s-installation.sh",
         "sed -i 's/INSTPASS/${var.admin_password}/g' jumpsrvscripts/k8s-installation.sh",
-		"sed -i 's/INSTSUB/${var.subnet_4_script}/g' jumpsrvscripts/k8s-installation.sh",
-		"sed -i 's/INSTNET/${var.net_4_script}/g' jumpsrvscripts/k8s-installation.sh",
-		"sed -i 's/INSTSUB/${var.subnet_4_script}/g' jumpsrvscripts/masterdiscover.sh",
-		"sed -i 's/INSTNET/${var.net_4_script}/g' jumpsrvscripts/masterdiscover.sh",
+		"sed -i 's,MYSUBNET,${var.subnet},g' jumpsrvscripts/k8s-installation.sh",
+		"sed -i 's,MYSUBNET,${var.subnet},g' jumpsrvscripts/masterdiscover.sh",
 		"sudo cp /snap/bin/nmap /bin",	
 		"cd jumpsrvscripts; /bin/sh masterdiscover.sh",
 		"cd /home/${var.admin_username}/jumpsrvscripts; /bin/sh k8s-installation.sh",
@@ -366,16 +355,10 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 #	provisioner "remote-exec" {
 #		inline = [
 #		# kubernetes dashboard installation
-#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/dashboard-admin-user.yaml",
-#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/clusterRoleBinding.yaml",
-#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/kubernetes-dashboard-beta2.3.yaml",
-#       ]
-#    }
-
-#	provisioner "remote-exec" {
-#		inline = [
-#		# kubernetes metrics-server installation
-#		"sshpass -p ${var.admin_password} -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/metrics-server/deploy/1.8+ .",
+#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create namespace k8s-dashboard",
+#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/dashboard-admin-user.yaml",
+#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/clusterRoleBinding.yaml",
+#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/kubernetes-dashboard-beta2.3.yaml",
 #       ]
 #    }
 
