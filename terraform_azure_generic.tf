@@ -51,7 +51,8 @@ resource "azurerm_private_dns_zone" "test" {
     name                = "svc.local"
     resource_group_name = "${azurerm_resource_group.terraformgroup.name}"
 	provisioner "local-exec" {
-		command = "az network private-dns link vnet create -g ${azurerm_resource_group.terraformgroup.name} --zone-name svc.local --name k8s --virtual-network ${azurerm_virtual_network.terraformnetwork.name} -e true"
+		#command = "az network private-dns link vnet create -g ${azurerm_resource_group.terraformgroup.name} --zone-name svc.local --name k8s --virtual-network ${azurerm_virtual_network.terraformnetwork.name} -e true"
+		command = "az network private-dns link vnet create -g ${azurerm_resource_group.terraformgroup.name} --zone-name ${azurerm_private_dns_zone.test.name} --name k8s --virtual-network ${azurerm_virtual_network.terraformnetwork.name} -e true"
 		}
 }
 
