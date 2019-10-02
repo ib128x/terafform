@@ -322,7 +322,7 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 
 
 	storage_image_reference {
-		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-oct"
+		id = "/subscriptions/09b1e9fd-5636-43ca-81d4-b82a0e132c44/resourceGroups/GENERIC/providers/Microsoft.Compute/images/JumpSrv-image-oct2"
 	}
 
     os_profile {
@@ -345,23 +345,12 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
 		# Masters and Workers installation
 		"sed -i 's/INSTUSER/${var.admin_username}/g' jumpsrvscripts/k8s-installation.sh",
         "sed -i 's/INSTPASS/${var.admin_password}/g' jumpsrvscripts/k8s-installation.sh",
-		"sed -i 's,MYSUBNET,${var.subnet},g' jumpsrvscripts/k8s-installation.sh",
-		"sed -i 's,MYSUBNET,${var.subnet},g' jumpsrvscripts/masterdiscover.sh",
-		"sudo cp /snap/bin/nmap /bin",	
-		"cd jumpsrvscripts; /bin/sh masterdiscover.sh",
-		"cd /home/${var.admin_username}/jumpsrvscripts; /bin/sh k8s-installation.sh",
+		"sed -i 's,MYSUBNET,${azurerm_subnet.terraformsubnet.address_prefix},g' jumpsrvscripts/k8s-installation.sh",
+		"sed -i 's,MYSUBNET,${azurerm_subnet.terraformsubnet.address_prefix},g' jumpsrvscripts/masterdiscover.sh",
+		"/bin/sh jumpsrvscripts/masterdiscover.sh",
+		"/bin/sh jumpsrvscripts/k8s-installation.sh",
        ]
     }	  	
-
-#	provisioner "remote-exec" {
-#		inline = [
-#		# kubernetes dashboard installation
-#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create namespace k8s-dashboard",
-#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/dashboard-admin-user.yaml",
-#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/clusterRoleBinding.yaml",
-#		"sshpass -p ${var.admin_password} ssh -o StrictHostKeyChecking=no ${var.admin_username}@master-1 kubectl create -f /etc/kubernetes/dashboard/kubernetes-dashboard-beta2.3.yaml",
-#       ]
-#    }
 
 	connection {
 	  type     = "ssh"
@@ -374,5 +363,3 @@ resource "azurerm_virtual_machine" "terraforJumpSrv" {
         environment = "generic"
     }
 }
-
-
